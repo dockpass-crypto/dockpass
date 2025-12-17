@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>독편사 AI 빅데이터 연구소</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        /* 모바일 친화적인 깔끔한 디자인 */
+        :root {
+            --primary-color: #3f51b5; /* 신뢰감 주는 네이비 블루 */
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-main: #333;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            width: 100%;
+            padding: 20px 0;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            margin-bottom: 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        h1 { margin: 0; font-size: 1.4rem; font-weight: 800; }
+        h2 { margin: 5px 0 0; font-size: 0.9rem; font-weight: 400; opacity: 0.9; }
+
+        .container {
+            width: 90%;
+            max-width: 600px;
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+        }
+
+        /* 검색창 스타일 */
+        .search-box {
+            position: relative;
+            width: 100%;
+            margin-bottom: 25px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 16px 20px;
+            padding-right: 50px;
+            font-size: 1.1rem;
+            border: 2px solid #e1e4e8;
+            border-radius: 12px;
+            outline: none;
+            box-sizing: border-box;
+            background-color: #f9fafb;
+            transition: all 0.2s ease;
+            -webkit-appearance: none; /* 아이폰 기본 스타일 제거 */
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            background-color: #fff;
+            box-shadow: 0 0 0 3px rgba(63, 81, 181, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.2rem;
+            color: #888;
+        }
+
+        /* 결과 리스트 스타일 */
+        .result-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .result-item {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+
+        .question-text {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            line-height: 1.5;
+            word-break: keep-all; /* 단어 단위 줄바꿈 */
+        }
+
+        .answer-badge {
+            display: inline-block;
+            background-color: #e8eaf6;
+            color: var(--primary-color);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .highlight {
+            background-color: #fff59d;
+            padding: 2px 0;
+        }
+
+        .no-result {
+            text-align: center;
+            color: #888;
+            padding: 30px 0;
+            font-size: 0.95rem;
+        }
+
+        /* 로딩 메시지 */
+        #loadingMsg {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>독편사 AI 빅데이터 연구소</h1>
+        <h2>학점은행제 평가항목 대비 솔루션</h2>
+    </header>
+
+    <div class="container">
+        <div id="loadingMsg">데이터 불러오는 중...</div>
+
+        <div id="searchSection" style="display:none;">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="검색어 입력 (예: 실업, 수요)" autocomplete="off">
+                <div class="search-icon">🔍</div>
+            </div>
+            <div id="resultArea">
+                <div class="no-result">검색어를 입력하면 문제가 표시됩니다.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // [자동 삽입된 데이터] CSV 데이터를 여기에 직접 넣었습니다.
+        // ============================================================
+        const CSV_DATA = `구분,과목명,문제유형,문제내용,예문,보기1,보기2,보기3,보기4,정답
+기말,경제학개론,단항선택,좋은 일자리를 탐색하거나 직업을 바꾸는 과정에서 당분간 실업상태에 있는 실업을 무슨 실업이라고 하는가?,,마찰적 실업,구조적 실업,경기변동 실업,계절적 실업,1
+기말,경제학개론,단항선택,경기선행지수에 포함되지 않는 경제 변수는?,,건설수주액,기계주수액,금융기관 유동성,생산자제품재고지수,4
+기말,경제학개론,단항선택,총공급곡선의 이동 요인이 아닌 것은?,,생산 요소의 가격 변화,기술 수준,인구증가,정부지출,4
+기말,경제학개론,단항선택,자신의 소비행위가 다른 사람들의 소비행위에 의해 영향을 받게 된다고 주장한 경제학자는?,,듀젠베리,모디리아니,케인즈,프리드만,1
+기말,경제학개론,단항선택,정부지출이 증가할 때 다음 중 옳은 결과는?,,IS 곡선 왼쪽으로 이동,IS 곡선 오른쪽으로 이동,LM 곡선 왼쪽으로 이동,LM 곡선 오른쪽으로 이동,2
+기말,경제학개론,단항선택,산업의 사양화로 어떤 특수한 종류의 노동력에 대한 수요가 부족하여 발생하는 실업을 무슨 실업이라고 하는가?,,마찰적 실업,구조적 실업,경기변동 실업,계절적 실업,2
+기말,경제학개론,단항선택,감세(세금감면)의 성격과 상관없이 감세는 소비를 증가시킴으로써 총수요와 국민소득이 증가한다고 주장한 경제학자의 이론은?,,프리드만의 항상소득가설,케인즈의 절대소득가설,모딜리아니의 평생소득가설,배로의 리카르도 대등정리,2
+기말,경제학개론,단항선택,다음 중 자발적 실업은?,,경기적 실업,구조적 실업,마찰적 실업,계절적 실업,3
+기말,경제학개론,단항선택,고전학파의 확대통화정책의 결과가 옳은 것끼리 짝지어진 것은?,,ㄱ, ㄴ,ㄱ, ㄷ,ㄱ, ㄹ,ㄴ, ㄹ,3
+기말,경제학개론,단항선택,다음 중 정부가 마찰적 실업을 줄이기 위해 실시할 수 있는 대책으로 가장 적절한 것은？,,정부가 구인 정보 제공 서비스를 강화한다.,정부가 기업에 보조금을 지급하여 고용을 장려한다.,중앙은행이 통화량을 늘려 이자율을 낮춘다.,정부가 공공사업을 통해 일자리를 직접 창출한다.,1
+중간,경제학개론,단답형,"어떤 나라의 소비함수(C), 투자지출(I), 정부지출(G) 및 조세징수액(T)이 다음과 같이 주어져 있다고 한다. 균형국민소득은 얼마인가?(단위, 천억)",,,,,,1조 3,500억원
+중간,경제학개론,단답형,기업이 가격을 연속적으로 변경시키는데 발생하는 모든 비용을 ( )이라 한다. 무엇인가?,,,,,,menu cost
+중간,경제학개론,단답형,저축자의 시간선호도와 투자자의 자본의 한계생산성을 반영하여 저축과 투자에 의해 결정되는 장기이자율을 ( )(이)라고 한다. 실질대부라고도 한다.,,,,,,natural rate of interest
+중간,경제학개론,단답형,기대인플레이션이 1% 상승하면 명목금리가 1% 상승하며 실질금리는 단기적으로 안정적이 되는 효과를 무슨 효과라고 하는가?,,,,,,Fisher Effect
+중간,경제학개론,단답형,구조적 실업을 포함한 광의의 마찰적 실업자가 경제활동 인구에서 차지하는 비율을 무엇이라고 하나?,,,,,,natural unemployment`;
+        // ============================================================
+
+        let examData = [];
+
+        // 페이지 로드 시 실행
+        window.onload = function() {
+            // CSV 데이터 파싱
+            Papa.parse(CSV_DATA.trim(), {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processData(results.data);
+                },
+                error: function(err) {
+                    alert("데이터 처리 중 오류가 발생했습니다.");
+                }
+            });
+        };
+
+        function processData(data) {
+            examData = data.map(row => {
+                const getVal = (key) => row[key] ? row[key].trim() : "";
+                
+                let question = getVal('문제내용');
+                let rawAnswer = getVal('정답');
+                let finalAnswer = rawAnswer;
+
+                // 정답이 번호(1~4)인 경우 보기 내용으로 변환
+                if (['1', '2', '3', '4'].includes(rawAnswer)) {
+                    let optionKey = '보기' + rawAnswer;
+                    if (row[optionKey]) {
+                        finalAnswer = row[optionKey];
+                    }
+                }
+
+                if (!finalAnswer || finalAnswer === "nan") finalAnswer = "정답 데이터 없음";
+
+                return { question, answer: finalAnswer };
+            });
+
+            // 로딩 완료 UI 처리
+            document.getElementById('loadingMsg').style.display = 'none';
+            document.getElementById('searchSection').style.display = 'block';
+            document.getElementById('searchInput').focus();
+        }
+
+        // 실시간 검색 기능 (글자 칠 때마다 바로 검색)
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            performSearch(e.target.value.trim());
+        });
+
+        function performSearch(keyword) {
+            const resultArea = document.getElementById('resultArea');
+            resultArea.innerHTML = "";
+
+            if (keyword.length < 1) {
+                resultArea.innerHTML = `<div class="no-result">검색어를 입력하면 문제가 표시됩니다.</div>`;
+                return;
+            }
+
+            // 검색 로직
+            const results = examData.filter(item => 
+                item.question && item.question.toLowerCase().includes(keyword.toLowerCase())
+            );
+
+            if (results.length === 0) {
+                resultArea.innerHTML = `<div class="no-result">검색 결과가 없습니다.</div>`;
+                return;
+            }
+
+            // 결과 리스트 생성
+            const ul = document.createElement('ul');
+            ul.className = 'result-list';
+
+            results.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'result-item';
+                
+                // 검색어 하이라이트 (노란색 형광펜 효과)
+                const highlightRegex = new RegExp(`(${keyword})`, 'gi');
+                const highlightedQuestion = item.question.replace(highlightRegex, '<span class="highlight">$1</span>');
+
+                li.innerHTML = `
+                    <div class="question-text">Q. ${highlightedQuestion}</div>
+                    <div class="answer-badge">A. ${item.answer}</div>
+                `;
+                ul.appendChild(li);
+            });
+
+            resultArea.appendChild(ul);
+        }
+    </script>
+</body>
+</html>

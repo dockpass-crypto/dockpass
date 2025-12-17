@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>독편사 AI 빅데이터 연구소</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3f51b5; /* 메인 컬러: 깔끔한 네이비 */
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-main: #333;
+        }
+
+        body {
+            font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            width: 100%;
+            padding: 25px 0;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 40px;
+        }
+
+        h1 { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; }
+        h2 { margin: 8px 0 0; font-size: 0.95rem; font-weight: 400; opacity: 0.9; }
+
+        .container {
+            width: 90%;
+            max-width: 700px; /* 검색 집중형이라 폭을 조금 좁게 잡음 */
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        /* 로딩 상태 표시 */
+        #loadingMsg {
+            font-size: 1.1rem;
+            color: var(--text-main);
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        /* 검색 영역 */
+        .search-section {
+            display: none; /* 로딩 전엔 숨김 */
+            width: 100%;
+        }
+
+        .search-box {
+            position: relative;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px 20px;
+            padding-right: 60px; /* 버튼 공간 확보 */
+            font-size: 1.1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 50px; /* 둥근 검색창 */
+            outline: none;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            background-color: #fcfcfc;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(63, 81, 181, 0.1);
+            background-color: #fff;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+            cursor: pointer;
+        }
+
+        /* 결과 리스트 스타일 */
+        .result-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            text-align: left;
+        }
+
+        .result-item {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+            transition: transform 0.2s;
+        }
+        
+        .result-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border-color: #d1d9ff;
+        }
+
+        .question-text {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .answer-badge {
+            display: inline-block;
+            background-color: #e8eaf6;
+            color: var(--primary-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .highlight {
+            background-color: #fff176;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+
+        .no-result {
+            color: #888;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>독편사 AI 빅데이터 연구소</h1>
+        <h2>학점은행제 평가항목 대비 솔루션</h2>
+    </header>
+
+    <div class="container">
+        <div id="loadingMsg">데이터를 불러오는 중입니다...</div>
+
+        <div class="search-section" id="searchSection">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="문제의 키워드를 입력하세요 (예: 실업, 수요, 케인즈)" autocomplete="off">
+                <div class="search-icon" onclick="performSearch()">🔍</div>
+            </div>
+            <div id="resultArea"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // [설정] 아래 따옴표 안에 구글 시트 '웹에 게시' 링크(CSV)를 넣으세요.
+        // ============================================================
+        const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQSK2qH1bgRZXU1p_-CSW-KuBuSJCyeSygDdItiZGiguHuHXw45_l1TLU_vRMojXuB3L-KzYhK6KIds/pub?output=csv"; 
+        // 예시: "https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?output=csv"
+        // ============================================================
+
+
+        let examData = [];
+
+        // 페이지가 열리자마자 실행
+        window.onload = function() {
+            // 링크가 설정되어 있지 않을 경우 경고
+            if (!SHEET_CSV_URL || SHEET_CSV_URL.includes("여기에")) {
+                document.getElementById('loadingMsg').innerHTML = 
+                    "<span style='color:red;'>⚠️ 설정 오류</span><br><br>HTML 파일 코드를 열어<br>'SHEET_CSV_URL' 변수에 구글 시트 링크를 넣어주세요.";
+                return;
+            }
+            loadData();
+        };
+
+        function loadData() {
+            Papa.parse(SHEET_CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processData(results.data);
+                },
+                error: function(err) {
+                    document.getElementById('loadingMsg').innerHTML = 
+                        "❌ 데이터를 불러오는데 실패했습니다.<br>구글 시트가 '웹에 게시' 되었는지 확인해주세요.";
+                }
+            });
+        }
+
+        function processData(data) {
+            // 데이터 정제 로직
+            examData = data.map(row => {
+                const getVal = (key) => row[key] ? row[key].trim() : "";
+                
+                let question = getVal('문제내용');
+                let rawAnswer = getVal('정답');
+                let finalAnswer = rawAnswer;
+
+                // 정답이 번호(1~4)일 경우 보기 내용 매칭
+                if (['1', '2', '3', '4'].includes(rawAnswer)) {
+                    let optionKey = '보기' + rawAnswer;
+                    if (row[optionKey]) finalAnswer = row[optionKey];
+                }
+
+                if (!finalAnswer || finalAnswer === "nan") finalAnswer = "정답 데이터 없음";
+
+                return { question, answer: finalAnswer };
+            });
+
+            // 로딩 메시지 숨기고 검색창 표시
+            document.getElementById('loadingMsg').style.display = 'none';
+            document.getElementById('searchSection').style.display = 'block';
+            
+            // 검색창에 포커스 (바로 입력 가능하게)
+            document.getElementById('searchInput').focus();
+        }
+
+        // 실시간 검색 (타이핑 할 때마다 결과 갱신 원할 경우 keyup 사용, 현재는 엔터/버튼 방식 유지하되 keyup 추가 고려)
+        document.getElementById('searchInput').addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        function performSearch() {
+            const keyword = document.getElementById('searchInput').value.trim();
+            const resultArea = document.getElementById('resultArea');
+            resultArea.innerHTML = "";
+
+            if (keyword.length < 1) {
+                // 검색어 비었을 때 메시지 (선택 사항)
+                return; 
+            }
+
+            const results = examData.filter(item => 
+                item.question.toLowerCase().includes(keyword.toLowerCase())
+            );
+
+            if (results.length === 0) {
+                resultArea.innerHTML = `<div class="no-result">검색 결과가 없습니다.</div>`;
+                return;
+            }
+
+            const ul = document.createElement('ul');
+            ul.className = 'result-list';
+
+            results.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'result-item';
+                
+                // 하이라이팅
+                const highlightRegex = new RegExp(`(${keyword})`, 'gi');
+                const highlightedQuestion = item.question.replace(highlightRegex, '<span class="highlight">$1</span>');
+
+                li.innerHTML = `
+                    <div class="question-text">Q. ${highlightedQuestion}</div>
+                    <div class="answer-badge">A. ${item.answer}</div>
+                `;
+                ul.appendChild(li);
+            });
+
+            resultArea.appendChild(ul);
+        }
+    </script>
+</body>
+</html>
